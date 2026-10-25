@@ -986,13 +986,24 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       snapshot => {
         const dbStudents: Student[] = [];
         snapshot.forEach(docSnap => {
-          const item = docSnap.data() as Student;
+          const item = { id: docSnap.id, ...(docSnap.data() as any) } as Student;
           if (!MOCK_ITEM_IDS.has(item.id)) {
             dbStudents.push(item);
           }
         });
 
-        setStudents(dbStudents);
+        // Real-time seamless merge ensuring freshly added students never flicker or vanish
+        setStudents(prev => {
+          const dbMap = new Map(dbStudents.map(s => [s.id, s]));
+          const localPending = prev.filter(p => !dbMap.has(p.id) && !MOCK_ITEM_IDS.has(p.id));
+          const merged = [...localPending, ...dbStudents];
+          return merged.sort((a, b) => {
+            const timeA = a.createdAt || (a.enrollmentDate ? `${a.enrollmentDate}T00:00:00.000Z` : '') || a.id;
+            const timeB = b.createdAt || (b.enrollmentDate ? `${b.enrollmentDate}T00:00:00.000Z` : '') || b.id;
+            return timeB.localeCompare(timeA);
+          });
+        });
+
         try {
           localStorage.setItem('areacrm_students_list', JSON.stringify(dbStudents));
         } catch (e) {
@@ -2123,6 +2134,7 @@ export const CrmProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isDeleted: false,
       branchId: assignedBranchId,
       branchName: assignedBranchName,
+      createdAt: nowIso,
     };
     setStudents(prev => [newStudent, ...prev]);
 

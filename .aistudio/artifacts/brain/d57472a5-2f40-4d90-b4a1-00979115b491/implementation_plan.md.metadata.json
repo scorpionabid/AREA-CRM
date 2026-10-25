@@ -1,6 +1,6 @@
 {
-  "summary":  "Nərimanov filialına əlavə edilmiş tələbənin yenilənmədən sonra yoxa çıxmasının dəqiq səbəbinin aradan qaldırılması, forma sahələrinin informativ validasiyası və bazaya yazılma xətalarının xəbərdarlıq (alert) bildirişləri ilə təmin olunması planı.",
-  "updatedAt":  "2026-10-22T13:36:31.186510918Z",
+  "summary":  "Plan for reorganizing branch-related navigation functionalities (Tələbələr, Müqavilələr, Lidlər, Davamiyyət, QR Giriş, Qruplar, Sertifikatlar) into an expandable 'Filiallar' submenu in the Sidebar, in accordance with user screenshot and questionnaire answers.",
+  "updatedAt":  "2026-10-25T09:43:52.171258509Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

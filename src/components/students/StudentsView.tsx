@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Users,
   Search,
@@ -51,6 +51,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ onOpenQuickPayment }
     staff,
     users,
     selectedBranchId,
+    setSelectedBranchId,
     currentUser,
     currentRole,
     addStudent,
@@ -84,6 +85,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ onOpenQuickPayment }
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'aktiv' | 'debt' | 'mezun' | 'dondurulub' | 'archived'>('all');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
+  const [highlightedStudentId, setHighlightedStudentId] = useState<string | null>(null);
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -417,28 +419,36 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ onOpenQuickPayment }
     setEditingStudent(null);
   };
 
-  const filteredStudents = students.filter(student => {
-    const matchesSearch =
-      student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (student.finCode && student.finCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      student.phone.includes(searchQuery) ||
-      student.courseName.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredStudents = useMemo(() => {
+    return students
+      .filter(student => {
+        const matchesSearch =
+          student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (student.finCode && student.finCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          student.phone.includes(searchQuery) ||
+          student.courseName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesGroup = selectedGroupId === 'all' || student.groupId === selectedGroupId;
+        const matchesGroup = selectedGroupId === 'all' || student.groupId === selectedGroupId;
 
-    let matchesStatus = true;
-    if (statusFilter === 'archived') {
-      matchesStatus = !!student.isDeleted;
-    } else {
-      if (student.isDeleted) return false;
-      if (statusFilter === 'aktiv') matchesStatus = student.status === 'aktiv';
-      else if (statusFilter === 'mezun') matchesStatus = student.status === 'mezun';
-      else if (statusFilter === 'dondurulub') matchesStatus = student.status === 'dondurulub';
-      else if (statusFilter === 'debt') matchesStatus = student.balance < 0;
-    }
+        let matchesStatus = true;
+        if (statusFilter === 'archived') {
+          matchesStatus = !!student.isDeleted;
+        } else {
+          if (student.isDeleted) return false;
+          if (statusFilter === 'aktiv') matchesStatus = student.status === 'aktiv';
+          else if (statusFilter === 'mezun') matchesStatus = student.status === 'mezun';
+          else if (statusFilter === 'dondurulub') matchesStatus = student.status === 'dondurulub';
+          else if (statusFilter === 'debt') matchesStatus = student.balance < 0;
+        }
 
-    return matchesSearch && matchesGroup && matchesStatus;
-  });
+        return matchesSearch && matchesGroup && matchesStatus;
+      })
+      .sort((a, b) => {
+        const timeA = a.createdAt || (a.enrollmentDate ? `${a.enrollmentDate}T00:00:00.000Z` : '') || a.id;
+        const timeB = b.createdAt || (b.enrollmentDate ? `${b.enrollmentDate}T00:00:00.000Z` : '') || b.id;
+        return timeB.localeCompare(timeA);
+      });
+  }, [students, searchQuery, selectedGroupId, statusFilter]);
 
   const handleAddStudentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,7 +508,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ onOpenQuickPayment }
 
     const targetBranch = branches.find(b => b.id === targetBranchId) || branches.find(b => !b.isDeleted) || branches[0];
 
-    addStudent({
+    const created = addStudent({
       fullName: cleanName,
       finCode: cleanFin || '',
       phone: newPhone.trim(),
@@ -526,6 +536,21 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ onOpenQuickPayment }
     setNewParentPhone('');
     setNewEmail('');
     setNewNotes('');
+
+    // Real-time automatic list update: clear all filters so new student is immediately visible!
+    setSearchQuery('');
+    setStatusFilter('all');
+    setSelectedGroupId('all');
+
+    if (created?.id) {
+      setHighlightedStudentId(created.id);
+      setTimeout(() => setHighlightedStudentId(null), 5000);
+    }
+
+    // If director added student to a specific branch not currently active in top bar, switch to that branch
+    if (selectedBranchId !== 'all' && targetBranchId && selectedBranchId !== targetBranchId) {
+      setSelectedBranchId(targetBranchId);
+    }
   };
 
   return (
@@ -723,7 +748,14 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ onOpenQuickPayment }
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.map(student => (
-                <tr key={student.id} className="hover:bg-slate-50/70 transition-colors">
+                <tr
+                  key={student.id}
+                  className={
+                    highlightedStudentId === student.id
+                      ? 'bg-emerald-50/90 transition-all duration-700 ring-2 ring-emerald-400'
+                      : 'hover:bg-slate-50/70 transition-colors'
+                  }
+                >
                   {/* Name & Enrollment */}
                   <td className="py-3 px-4">
                     <button
@@ -734,6 +766,12 @@ export const StudentsView: React.FC<StudentsViewProps> = ({ onOpenQuickPayment }
                         <p className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
                           {student.fullName}
                         </p>
+                        {highlightedStudentId === student.id && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            Yeni əlavə edildi
+                          </span>
+                        )}
                         {student.finCode && (
                           <span
                             title="Şəxsiyyət vəsiqəsi FİN kodu"

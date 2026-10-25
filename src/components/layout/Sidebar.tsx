@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +15,7 @@ import {
   LucideIcon,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Shield,
   Briefcase,
   User,
@@ -58,19 +59,42 @@ export const Sidebar: React.FC = () => {
   } = useCrm();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false);
 
   const activeStudentsCount = students.filter(s => s.status === 'aktiv').length;
   const activeTasksCount = tasks.filter(t => t.status !== 'tamamlandi' && t.status !== 'texire_salindi').length;
   const activeLeadsCount = leads.filter(l => l.stage !== 'qeydiyyat' && l.stage !== 'imtina').length;
   const pendingExpensesCount = expenses.filter(e => e.approvalStatus === 'gozleyir').length;
 
-  const navigation: NavItem[] = [
-    {
-      id: 'dashboard',
-      label: 'Panel',
-      icon: LayoutDashboard,
-      roles: ['direktor', 'menecer', 'telimci', 'sagird'],
-    },
+  const navModuleMap: Partial<Record<ActiveTab, SystemModuleId>> = {
+    dashboard: 'dashboard',
+    students: 'students',
+    contracts: 'contracts',
+    groups: 'groups',
+    leads: 'leads',
+    attendance: 'attendance',
+    'staff-attendance': 'staffAttendance',
+    certificates: 'certificates',
+    curriculum: 'curriculum',
+    finance: 'finance',
+    tasks: 'tasks',
+    kpi: 'kpi',
+    whatsapp: 'whatsapp',
+    branches: 'branches',
+    users: 'users',
+    staff: 'users',
+  };
+
+  const isItemVisible = (item: NavItem) => {
+    const moduleId = navModuleMap[item.id];
+    if (moduleId) {
+      return can('view', moduleId);
+    }
+    return item.roles.includes(currentRole);
+  };
+
+  // Branch Submenu Items (Filiallar alt menyusu - şəkildəki ardıcıllıqla)
+  const branchSubmenuItems: NavItem[] = [
     {
       id: 'students',
       label: 'Tələbələr',
@@ -84,13 +108,6 @@ export const Sidebar: React.FC = () => {
       icon: FileSignature,
       count: contracts.filter(c => c.status === 'aktiv').length,
       roles: ['direktor', 'menecer'],
-    },
-    {
-      id: 'groups',
-      label: 'Qruplar',
-      icon: GraduationCap,
-      count: currentRole === 'sagird' ? 1 : groups.length,
-      roles: ['direktor', 'menecer', 'telimci', 'sagird'],
     },
     {
       id: 'leads',
@@ -112,6 +129,13 @@ export const Sidebar: React.FC = () => {
       roles: ['direktor', 'menecer', 'telimci'],
     },
     {
+      id: 'groups',
+      label: 'Qruplar',
+      icon: GraduationCap,
+      count: currentRole === 'sagird' ? 1 : groups.length,
+      roles: ['direktor', 'menecer', 'telimci', 'sagird'],
+    },
+    {
       id: 'certificates',
       label: 'Sertifikatlar',
       icon: Award,
@@ -119,17 +143,38 @@ export const Sidebar: React.FC = () => {
       roles: ['direktor', 'menecer', 'telimci', 'sagird'],
     },
     {
-      id: 'curriculum',
-      label: 'Kurikulum',
-      icon: BookOpen,
-      roles: ['direktor', 'menecer', 'telimci', 'sagird'],
+      id: 'branches',
+      label: 'Filial Tənzimləmələri',
+      icon: Building2,
+      count: branches.length,
+      roles: ['direktor'],
     },
+  ];
+
+  const visibleBranchSubmenuItems = branchSubmenuItems.filter(isItemVisible);
+  const isBranchSubmenuActive = visibleBranchSubmenuItems.some(item => item.id === activeTab);
+
+  // Auto-open submenu if user navigates to any branch item from other views
+  useEffect(() => {
+    if (isBranchSubmenuActive) {
+      setIsBranchMenuOpen(true);
+    }
+  }, [activeTab]);
+
+  // Bottom Navigation Items (Maliyyə və digər modullar)
+  const bottomNavigation: NavItem[] = [
     {
       id: 'finance',
       label: 'Maliyyə',
       icon: Wallet,
       count: pendingExpensesCount > 0 ? pendingExpensesCount : undefined,
       roles: ['direktor', 'menecer'],
+    },
+    {
+      id: 'curriculum',
+      label: 'Kurikulum',
+      icon: BookOpen,
+      roles: ['direktor', 'menecer', 'telimci', 'sagird'],
     },
     {
       id: 'tasks',
@@ -151,13 +196,6 @@ export const Sidebar: React.FC = () => {
       roles: ['direktor', 'menecer'],
     },
     {
-      id: 'branches',
-      label: 'Filiallar',
-      icon: Building2,
-      count: branches.length,
-      roles: ['direktor'],
-    },
-    {
       id: 'users',
       label: currentRole === 'menecer' ? 'Təlimçilər & Heyət' : 'İstifadəçilər',
       icon: currentRole === 'menecer' ? GraduationCap : UserCog,
@@ -166,32 +204,7 @@ export const Sidebar: React.FC = () => {
     },
   ];
 
-  const navModuleMap: Partial<Record<ActiveTab, SystemModuleId>> = {
-    dashboard: 'dashboard',
-    students: 'students',
-    contracts: 'contracts',
-    groups: 'groups',
-    leads: 'leads',
-    attendance: 'attendance',
-    'staff-attendance': 'staffAttendance',
-    certificates: 'certificates',
-    curriculum: 'curriculum',
-    finance: 'finance',
-    tasks: 'tasks',
-    kpi: 'kpi',
-    whatsapp: 'whatsapp',
-    branches: 'branches',
-    users: 'users',
-    staff: 'users',
-  };
-
-  const visibleItems = navigation.filter(item => {
-    const moduleId = navModuleMap[item.id];
-    if (moduleId) {
-      return can('view', moduleId);
-    }
-    return item.roles.includes(currentRole);
-  });
+  const visibleBottomItems = bottomNavigation.filter(isItemVisible);
 
   const rolesList: { role: Role; label: string; icon: LucideIcon }[] = [
     { role: 'direktor', label: 'Direktor', icon: Crown },
@@ -233,8 +246,120 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Navigation List */}
-      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {visibleItems.map(item => {
+      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1.5 scrollbar-thin">
+        {/* 1. İdarəetmə Paneli (Dashboard) */}
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          title="İdarəetmə Paneli"
+          className={`w-full flex items-center ${
+            isCollapsed ? 'justify-center px-0' : 'justify-between px-2.5'
+          } py-2 rounded-lg text-xs font-medium transition-all text-left cursor-pointer group ${
+            activeTab === 'dashboard'
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold shadow-sm'
+              : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <LayoutDashboard
+              className={`w-4 h-4 shrink-0 ${
+                activeTab === 'dashboard' ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+              }`}
+            />
+            {!isCollapsed && <span className="truncate">İdarəetmə Paneli</span>}
+          </div>
+        </button>
+
+        {/* 2. Filiallar Section with Accordion Submenu */}
+        {visibleBranchSubmenuItems.length > 0 && (
+          <div className="space-y-1">
+            <button
+              onClick={() => {
+                if (isCollapsed) {
+                  setIsCollapsed(false);
+                  setIsBranchMenuOpen(true);
+                } else {
+                  setIsBranchMenuOpen(prev => !prev);
+                }
+              }}
+              title="Filiallar"
+              className={`w-full flex items-center ${
+                isCollapsed ? 'justify-center px-0' : 'justify-between px-2.5'
+              } py-2 rounded-lg text-xs font-medium transition-all text-left cursor-pointer group ${
+                isBranchSubmenuActive && !isBranchMenuOpen
+                  ? 'bg-slate-800/90 text-indigo-300 font-semibold border border-indigo-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Building2
+                  className={`w-4 h-4 shrink-0 ${
+                    isBranchSubmenuActive ? 'text-indigo-400' : 'text-slate-400 group-hover:text-slate-200'
+                  }`}
+                />
+                {!isCollapsed && <span className="truncate font-semibold">Filiallar</span>}
+              </div>
+
+              {!isCollapsed && (
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${
+                    isBranchMenuOpen ? 'rotate-180 text-white' : ''
+                  }`}
+                />
+              )}
+
+              {isCollapsed && isBranchSubmenuActive && (
+                <span className="absolute right-1.5 top-1.5 w-2 h-2 rounded-full bg-indigo-500 ring-2 ring-slate-900" />
+              )}
+            </button>
+
+            {/* Submenu Items List */}
+            {!isCollapsed && isBranchMenuOpen && (
+              <div className="pl-2 pr-1 py-1 space-y-0.5 border-l border-slate-800 ml-4 bg-slate-950/40 rounded-r-lg">
+                {visibleBranchSubmenuItems.map(subItem => {
+                  const SubIcon = subItem.icon;
+                  const isSubActive = activeTab === subItem.id;
+
+                  return (
+                    <button
+                      key={subItem.id}
+                      onClick={() => setActiveTab(subItem.id)}
+                      title={subItem.label}
+                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-colors text-left cursor-pointer group ${
+                        isSubActive
+                          ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                          : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <SubIcon
+                          className={`w-3.5 h-3.5 shrink-0 ${
+                            isSubActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'
+                          }`}
+                        />
+                        <span className="truncate text-[11.5px]">{subItem.label}</span>
+                      </div>
+
+                      {subItem.count !== undefined && (
+                        <span
+                          className={`text-[9.5px] font-mono-nums px-1.5 py-0.2 rounded text-center shrink-0 ${
+                            isSubActive
+                              ? 'bg-indigo-700 text-indigo-100'
+                              : 'bg-slate-800/80 text-slate-400'
+                          }`}
+                        >
+                          {subItem.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. Bottom Items (Maliyyə, Kurikulum, Tapşırıqlar, KPI, WhatsApp, İstifadəçilər) */}
+        {visibleBottomItems.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
 
@@ -247,7 +372,7 @@ export const Sidebar: React.FC = () => {
                 isCollapsed ? 'justify-center px-0' : 'justify-between px-2.5'
               } py-2 rounded-lg text-xs font-medium transition-colors text-left cursor-pointer group ${
                 isActive
-                  ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold shadow-sm'
                   : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >

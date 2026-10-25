@@ -61,6 +61,7 @@ export interface Student {
   birthDate?: string;
   notes?: string;
   attendanceRate: number; // 0-100
+  createdAt?: string;
 }
 
 export interface Group {

@@ -1,71 +1,92 @@
-# Tələbə Əlavə Edərkən Yoxa Çıxma Probleminin Həlli və İnformativ Validasiya Planı
+# Filial Funksionallıqlarının Submenu Altında Qruplaşdırılması
 
-Nərimanov filialına (və digər filiallara) yeni tələbə əlavə edildikdən sonra səhifəni yenilədikdə (F5) məlumatın itməsi səbəbinin aradan qaldırılması, istifadəçi üçün informativ xəta xəbərdarlıqlarının (alert) və xana validasiyalarının qurulması planı.
+Naviqasiya menyusunun (Sidebar) təşkilati arxitekturasını yeniləyərək, filiala aid əsas modulları (Tələbələr, Müqavilələr, Lidlər, Davamiyyət, QR Giriş, Qruplar və Sertifikatlar) istifadəçinin təqdim etdiyi interfeys dizaynına uyğun olaraq "Filiallar" alt menyusu (accordion/submenu) daxilində birləşdirmək.
 
----
-
-## 1. Dəqiq Səbəbin İzahı (Root Cause Analysis)
-
-Aparılan diaqnostik testlərin nəticəsi:
-1. **Firestore `undefined` Qadağası**:
-   - `StudentsView.tsx` formasında bəzi xanalar (FİN kod, Doğum tarixi, Valideyn nömrəsi və ya Nərimanovda mövcud qrup olmadığı üçün qrup məlumatları) boş buraxıldıqda, obyektə `undefined` dəyəri ötürülür.
-   - Firestore SDK standart rejimdə obyektdə `undefined` sahəsi olduqda əməliyyatı dayandırır və xəta qaytarır:
-     `FirebaseError: Function setDoc() called with invalid data. Unsupported field value: undefined`.
-2. **Niyə İlk Əvvəl Göründü, Sonra Yoxa Çıxdı?**:
-   - `addStudent` funksiyası çağırıldıqda əvvəlcə React-in lokal yaddaşı (`setStudents`) yenilənir — buna görə də istifadəçi tələbəni dərhal cədvəldə görür.
-   - Lakin arxa planda Firestore bazasına `setDoc` göndərilərkən `undefined` səbəbilə baza sorğunu rədd edir və `.catch(console.warn)` xətanı istifadəçiyə bildirmədən udur.
-   - İstifadəçi səhifəni yenilədikdə (F5) tətbiq Firestore-dan məlumatları yenidən çəkir. Baza qeydi qəbul etmədiyi üçün tələbə yoxa çıxır.
-3. **İnformativ Alert Çatışmazlığı**:
-   - İstifadəçi formanı doldurarkən hansı xanaların mütləq olduğunu və hansı formatda yazılmalı olduğunu aydın görə bilmirdi və bazaya yazılma uğursuz olduqda heç bir xəbərdarlıq pəncərəsi (alert) açılmırdı.
-
----
-
-## 2. İstifadəçi Tərəfindən Təsdiqlənmiş Tələblər
+## Təsdiqlənmiş Qərarlar və İstifadəçi Cavabları
 
 > [!IMPORTANT]
-> - **Tələb 1**: İstifadəçinin boş buraxdığı və ya səhv doldurduğu xanalara aydın, vizual və informativ xəta bildirişi (informativ alert / inline xəbərdarlıq) göstərilməlidir.
-> - **Tələb 2**: Bazaya yazılma zamanı istifadəçi xətası və ya şəbəkə xətası baş verərsə, səssiz udulmamalı, istifadəçiyə dərhal aydın izahlı Alert dialoqu çıxmalıdır.
-> - **Tələb 3**: Boş xanaların Firestore-a maneəsiz ötürülməsi üçün sanitizasiya və `ignoreUndefinedProperties` təhlükəsizliyi təmin edilməlidir.
+> İstifadəçi sorğusu əsasında dəqiqləşdirilmiş seçimlər:
+
+- **İlkin Vəziyyət**: Filiallar alt menyusu səhifə ilk açılanda bağlı (collapsed) qalacaq, istifadəçi başlıq üzərinə kliklədikdə animasiya ilə açılacaq (əgər cari aktiv modul filial alt menyusundadırsa, istifadəçinin konteksti itirməməsi üçün avtomatik açıq göstəriləcək).
+- **Filiallar Başlığının Davranışı**: Əsas "Filiallar" düyməsinə kliklədikdə səhifə dəyişməyəcək, yalnız alt menyu açılıb-bağlanacaq (`toggleExpand`).
+- **Digər Modulların Yeri**: Şəkildə göstərilməyən "Kurikulum", "Maliyyə", "Tapşırıqlar", "KPI Sistemi", "WhatsApp" və "İstifadəçilər / Heyət" modulları əsas menyu sütununda müstəqil bəndlər kimi qalacaq.
 
 ---
 
-## 3. Texniki İcra Addımları
+### 1. İcmal və Konsept
 
-### Addım 1: Formada İnformativ Xəta və Validasiya Sistemi (`StudentsView.tsx`)
-- Məcburi və tövsiyə olunan xanalar üçün real-vaxt validasiyası:
-  - **Ad və Soyad**: Boş olduqda qırmızı haşiyə və *"Zəhmət olmasa tələbənin ad və soyadını qeyd edin (məs: Əli Məmmədov)"* xətası.
-  - **Əlaqə Nömrəsi**: Boş və ya natamam olduqda *"Əlaqə nömrəsi ən azı 9 rəqəmdən ibarət olmalıdır (məs: 050 123 45 67)"* xətası.
-  - **FİN Kod**: Əgər doldurulubsa, dəqiq 7 simvol (hərf/rəqəm) tələbi və format izahı.
-  - **Aylıq Tədris Haqqı**: Mənfi və ya boş olduqda xəbərdarlıq.
-  - **Filial və Qrup Bildirişi**: Əgər seçilmiş filialda (məs: Nərimanovda) hələ qrup yaradılmayıbsa, formanın üstündə informativ mavi/sarı bildiriş bloku: *"Bu filialda hələ aktiv qrup yoxdur. Tələbə 'Qrup yoxdur (Sonradan təyin et)' statusu ilə qeydiyyata alınacaq."*
-- Formanın yuxarısında xətaların ümumi icmalı üçün informativ qırmızı `AlertBanner` komponenti.
-
-### Addım 2: Firestore Təhlükəsizliyi və Boş Sahələrin Sanitizasiyası (`src/firebase/config.ts` & `src/context/CrmContext.tsx`)
-- `src/firebase/config.ts` faylında `initializeFirestore` konfiqurasiyasına `ignoreUndefinedProperties: true` əlavə edilməsi.
-- `sanitizeForFirestore(data)` köməkçi funksiyasının tətbiqi:
-  - Bütün `undefined` sahələri ya təmizlənir, ya da təhlükəsiz `null` / boş string ilə əvəzlənir.
-- `addStudent` metodunda Firestore əməliyyatının `await` ilə təsdiqlənməsi:
-  - Əgər yazılma uğurlu olarsa -> yaşıl uğur toast-u (`"Tələbə bazaya uğurla yazıldı və yadda saxlanıldı"`).
-  - Əgər Firestore hər hansı səbəbdən xəta qaytararsa -> dərhal istifadəçiyə modal xəbərdarlıq (Alert): *"Məlumat bazaya yazıla bilmədi: [Dəqiq səbəb]. Zəhmət olmasa yenidən cəhd edin."*
-
-### Addım 3: Nərimanov və Digər Filiallar Üçün İlkin Qrup Təminatı
-- Nərimanov filialında hazırda qrup olmadığı üçün tələbə əlavə edilərkən müqavilə və borc cədvəlində `grp-unassigned` qeydinin təhlükəsiz idarə olunması.
+- **Hədəf**: Sidebar menyusunun vizual sıxlığını azaltmaq, filial idarəetməsi ilə birbaşa əlaqəli olan əməliyyatları vahid məntiqi bölmə altında strukturlaşdırmaq.
+- **Dizayn Uyğunluğu**: İstifadəçinin göndərdiyi `Screenshot_2026-10-25_at_13.40.38_9ef0cd8c.png` ekran görüntüsündəki dizayna (yuvarlaqlaşdırılmış alt panel, zərif fon fərqi, ikonlar və chevron oxu) 100% uyğunlaşdırılacaq.
 
 ---
 
-## 4. Dəyişdiriləcək Fayllar
+### 2. İstifadəçi Təcrübəsi və Vizual Dizayn
 
-1. `src/firebase/config.ts` - `ignoreUndefinedProperties: true` aktivləşdirilməsi.
-2. `src/utils/sanitizeFirestore.ts` - Baza üçün məlumatların təhlükəsiz filterlənməsi köməkçisi.
-3. `src/context/CrmContext.tsx` - `addStudent` və əlaqəli funksiyalarda təhlükəsiz `await` yazılışı və dəqiq xəta ötürülməsi.
-4. `src/components/students/StudentsView.tsx` - İnformativ xəta alertləri, xanaların canlı validasiya mesajları və qırmızı vizual indikatorlar.
+#### A. Vizual Struktur və Komponent İyerarxiyası
+1. **İdarəetmə Paneli**: Əsas yuxarı naviqasiya bəndi (aktiv olduqda bənövşəyi/indigo qradiyent və ikon).
+2. **Filiallar Bölməsi (Accordion Submenu Container)**:
+   - Başlıq: `Building2` ikonu, "Filiallar" mətni, sağ tərəfdə vəziyyətə görə dönən `ChevronDown` oxu (`transition-transform duration-200`).
+   - Daxili Submenu Paneli:
+     - `Tələbələr` (`Users`) - tələbə sayı sayğacı ilə
+     - `Müqavilələr` (`FileSignature`) - aktiv müqavilələr sayğacı ilə
+     - `Lidlər` (`UserCheck`) - aktiv lidlər sayğacı ilə
+     - `Davamiyyət` (`CalendarCheck`)
+     - `QR Giriş` (`QrCode`)
+     - `Qruplar` (`GraduationCap`) - mövcud qrup sayı ilə
+     - `Sertifikatlar` (`Award`) - sertifikat sayı ilə
+3. **Müstəqil Əsas Menyu Bəndləri**:
+   - `Maliyyə` (`Wallet`)
+   - `Kurikulum` (`BookOpen`)
+   - `Tapşırıqlar` (`ClipboardList`)
+   - `KPI Sistemi` (`Target`)
+   - `WhatsApp` (`MessageSquare`)
+   - `İstifadəçilər` / `Təlimçilər & Heyət` (`UserCog` / `GraduationCap`)
+
+```
+┌──────────────────────────────────────────────┐
+│  [A] AREA CRM Tədris                     [<] │
+├──────────────────────────────────────────────┤
+│  [■] İdarəetmə Paneli                        │
+│                                              │
+│  [🏢] Filiallar                          [v] │
+│  ┌─────────────────────────────────────────┐ │
+│  │   [👥] Tələbələr                    (48)│ │
+│  │   [📝] Müqavilələr                  (12)│ │
+│  │   [👤] Lidlər                        (5)│ │
+│  │   [📅] Davamiyyət                       │ │
+│  │   [▦] QR Giriş                          │ │
+│  │   [🎓] Qruplar                      (10)│ │
+│  │   [🎖️] Sertifikatlar                 (8)│ │
+│  └─────────────────────────────────────────┘ │
+│                                              │
+│  [👛] Maliyyə                                │
+│  [📖] Kurikulum                              │
+│  [📋] Tapşırıqlar                            │
+│  [🎯] KPI Sistemi                            │
+│  [💬] WhatsApp                               │
+│  [⚙️] İstifadəçilər                          │
+└──────────────────────────────────────────────┘
+```
+
+#### B. Menyunun Yığılmış (Collapsed) Rejimi
+- İstifadəçi sidebar-ı yığdıqda (`isCollapsed: true`), "Filiallar" ikonu üzərinə gəldikdə və ya kliklədikdə alt menyu itmir, tooltip / flyout popover şəklində rahat seçim imkanı yaradır.
 
 ---
 
-## 5. Yoxlama və Təhvil
+### 3. Texniki Arxitektura və Dəyişikliklər
 
-1. Formada bilərəkdən boş sahələrlə (məs: FİN-siz, Doğum tarixisiz) Nərimanov filialına yeni tələbə daxil edilməsi.
-2. Tələbənin dərhal Firestore bazasında mövcudluğunun Node skripti ilə təsdiqi.
-3. Səhifəni yenilədikdə (F5) tələbənin tam olaraq yerində qaldığının yoxlanılması.
-4. Boş ad və ya yanlış nömrə daxil edildikdə informativ alert bildirişinin açılmasının yoxlanılması.
-5. `compile_applet` və `lint_applet` ilə tətbiqin xətasız kompayl edilməsi.
+- **Fayl**: `src/components/layout/Sidebar.tsx`
+  - `branchSubmenuItems` massivi tərtib edilir (`students`, `contracts`, `leads`, `attendance`, `staff-attendance`, `groups`, `certificates`).
+  - `isBranchMenuOpen` yerli state əlavə edilir (ilkin dəyəri `false`, lakin aktiv tab alt menyudakı elementlərdən biridirsə avtomatik açıq saxlanılır).
+  - Şəkildəki estetikaya tam uyğun Tailwind CSS sinifləri tətbiq edilir (`bg-slate-800/60`, `border border-slate-700/50`, `rounded-xl`, `pl-3`).
+  - Rol və icazə (`can('view', moduleId)`) yoxlamaları tam qorunur; müvafiq rola aid olmayan alt menyu elementləri təhlükəsiz şəkildə gizlədilir.
+  - Heç bir xarici paket tələb olunmur, mövcud `lucide-react` ikonları istifadə edilir.
+
+---
+
+### 4. Yoxlama Planı
+
+1. **İlkin vəziyyətin yoxlanması**: Səhifə yeniləndikdə Filiallar alt menyusunun bağlı olması və yalnız kliklə açılması.
+2. **Alt menyu elementlərinin işləkliyi**: `Tələbələr`, `Müqavilələr`, `Lidlər`, `Davamiyyət`, `QR Giriş`, `Qruplar`, `Sertifikatlar` düymələrinə kliklədikdə müvafiq səhifələrin dərhal açılması və aktiv stilin göstərilməsi.
+3. **Maliyyə və digər modulların yoxlanması**: `Maliyyə`, `Kurikulum`, `Tapşırıqlar` və s. bəndlərin müstəqil şəkildə aşağıda yerləşməsi və düzgün işləməsi.
+4. **Kod yoxlanışı**: `compile_applet` və `lint_applet` vasitəsilə 0 xəta ilə təsdiqlənməsi.
