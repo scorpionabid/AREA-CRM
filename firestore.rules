@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // AREA-CRM: Allow read and write to all CRM documents so that all 9 branches,
+    // staff members (Google, Direct, and Quick login), and parents can seamlessly
+    // view and persist data in real-time without permission-denied drops.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
